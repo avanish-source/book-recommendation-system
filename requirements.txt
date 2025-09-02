@@ -1,6 +1,0 @@
-streamlit
-supabase
-pandas
-numpy
-scikit-learn
-scikit-surprise
