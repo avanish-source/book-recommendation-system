@@ -131,7 +131,8 @@ def recommend_books_content_based(target_user, top_n=5):
     ].copy()
     
     # Exclude books the user has already rated
-    rated_book_ids = user_rated_books["id"].tolist()
+    # CORRECTED: Use 'id_y' to reference the book ID from the merged dataframe
+    rated_book_ids = user_rated_books["id_y"].tolist()
     recommendations_df = recommendations_df[~recommendations_df["id"].isin(rated_book_ids)]
     
     # For a simple approach, we'll sort by matching author/genre, but a more complex model could use tf-idf
@@ -174,6 +175,14 @@ if selected_user:
     st.subheader(f"✨ Recommended for you:")
     with st.spinner("Generating recommendations..."):
         if recommendation_type == 'Collaborative Filtering':
+            # Add the new description for collaborative filtering
+            st.markdown(
+                """
+                Our **Collaborative Filtering** model works by finding other users with similar reading tastes
+                to yours. We analyze how you and other readers have rated books, and then recommend
+                titles that similar readers enjoyed but you haven't yet discovered.
+                """
+            )
             results = recommend_books_collaborative(selected_user, top_n=5)
         else:
             results = recommend_books_content_based(selected_user, top_n=5)
