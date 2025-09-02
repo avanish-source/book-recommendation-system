@@ -1,0 +1,23 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+ 
+# Virtual environment
+venv/
+.env/
+.venv/
+ 
+# Jupyter / Colab
+.ipynb_checkpoints/
+ 
+# Secrets (like Supabase keys if stored in a file)
+*.env
+ 
+# OS files
+.DS_Store
+Thumbs.db
+ 
+# Streamlit logs
+.streamlit/
