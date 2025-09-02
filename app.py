@@ -97,6 +97,7 @@ def recommend_books_collaborative(target_user, top_n=5):
             f"**Why this recommendation was made:**\n"
             f"Recommended because {count_users} similar reader(s) gave it "
             f"an average of {avg_rating:.1f}★.\n"
+            f"Similarity is determined by comparing your ratings on books you have in common with other readers.\n"
             f"📖 Author: {book_info['author']} | 🎭 Genre: {book_info['genre']}\n"
             f"📝 Summary: {book_info['description']}"
         )
@@ -185,6 +186,12 @@ if selected_user:
             )
             results = recommend_books_collaborative(selected_user, top_n=5)
         else:
+            # Add the new description for content-based filtering
+            st.markdown(
+                """
+                Your interests are determined by the genres and authors of the books you have previously rated with 4 stars or higher.
+                """
+            )
             results = recommend_books_content_based(selected_user, top_n=5)
     
     if results:
