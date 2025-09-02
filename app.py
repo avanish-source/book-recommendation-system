@@ -58,7 +58,7 @@ def cosine_similarity(user1, user2):
     
     return numerator / (den1 * den2) if den1 and den2 else 0
 
-def recommend_books(target_user, top_n=5):
+def recommend_books_collaborative(target_user, top_n=5):
     """
     Recommends books to a target user using collaborative filtering.
     """
@@ -94,6 +94,7 @@ def recommend_books(target_user, top_n=5):
         
         # Create a descriptive reason for the recommendation, including the description
         reason = (
+            f"**Why this recommendation was made:**\n"
             f"Recommended because {count_users} similar reader(s) gave it "
             f"an average of {avg_rating:.1f}★.\n"
             f"📖 Author: {book_info['author']} | 🎭 Genre: {book_info['genre']}\n"
@@ -106,6 +107,46 @@ def recommend_books(target_user, top_n=5):
     recommendations.sort(key=lambda x: x[2], reverse=True)
     
     return recommendations[:top_n]
+
+
+def recommend_books_content_based(target_user, top_n=5):
+    """
+    Recommends books to a target user using a content-based approach.
+    """
+    # Get the books the user has rated highly
+    user_rated_books = ratings[ratings["user_id"] == target_user].merge(books, left_on="book_id", right_on="id")
+    top_rated_books = user_rated_books[user_rated_books["rating"] >= 4]
+
+    if top_rated_books.empty:
+        return []
+
+    # Get the top genres and authors from the user's highly-rated books
+    favorite_genres = top_rated_books["genre"].tolist()
+    favorite_authors = top_rated_books["author"].tolist()
+    
+    # Find candidate books that match these genres and authors
+    recommendations_df = books[
+        (books["genre"].isin(favorite_genres)) |
+        (books["author"].isin(favorite_authors))
+    ].copy()
+    
+    # Exclude books the user has already rated
+    rated_book_ids = user_rated_books["id"].tolist()
+    recommendations_df = recommendations_df[~recommendations_df["id"].isin(rated_book_ids)]
+    
+    # For a simple approach, we'll sort by matching author/genre, but a more complex model could use tf-idf
+    # For now, we'll just return a distinct list of up to top_n books.
+    recommendations = []
+    for _, row in recommendations_df.head(top_n).iterrows():
+        reason = (
+            f"**Why this recommendation was made:**\n"
+            f"Recommended because it matches your interest in the "
+            f"'{row['genre']}' genre and the author '{row['author']}'.\n"
+            f"📝 Summary: {row['description']}"
+        )
+        recommendations.append((row["title"], reason, 0)) # Using 0 for rating as a placeholder
+    
+    return recommendations
 
 # ---------- Streamlit UI ----------
 st.title("📚 Personalized Book Recommendations")
@@ -122,39 +163,20 @@ selected_user = st.selectbox(
     format_func=lambda x: user_names[x]
 )
 
-if selected_user:
-    st.subheader(f"📖 Your past ratings ({user_names[selected_user]}):")
-    
-    # Display past ratings in a styled markdown block
-    # Note: Merging on 'user_id' from ratings and 'id' from books
-    past = ratings[ratings["user_id"] == selected_user].merge(books, left_on="book_id", right_on="id")
-    if not past.empty:
-        for _, row in past.iterrows():
-            st.markdown(
-                f"""
-                <div style="
-                    background-color:#eef6ff;
-                    padding:10px;
-                    border-radius:10px;
-                    margin-bottom:8px;">
-                    <b>{row['title']}</b> — {row['rating']}★  
-                    <span style="color:#666; font-size:13px;">
-                        Author: {row['author']} | Genre: {row['genre']}
-                    </span>
-                    <p style="margin:4px 0; color:#444; font-size:14px;">
-                        📝 Summary: {row['description']}
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-    else:
-        st.info("You haven't rated any books yet. Try rating some first!")
+# Add a radio button to select the recommendation method
+recommendation_type = st.radio(
+    "Choose recommendation type:",
+    ('Collaborative Filtering', 'Content-Based Filtering'),
+    horizontal=True
+)
 
-    # Display recommendations
+if selected_user:
     st.subheader(f"✨ Recommended for you:")
     with st.spinner("Generating recommendations..."):
-        results = recommend_books(selected_user, top_n=5)
+        if recommendation_type == 'Collaborative Filtering':
+            results = recommend_books_collaborative(selected_user, top_n=5)
+        else:
+            results = recommend_books_content_based(selected_user, top_n=5)
     
     if results:
         for title, reason, _ in results:
