@@ -54,6 +54,20 @@ def load_data():
     }
     properties_df = pd.DataFrame(data)
 
+    # Adding coordinates for the dummy cities
+    city_coords = {
+        'Houston, TX': {'latitude': 29.7604, 'longitude': -95.3698},
+        'Austin, TX': {'latitude': 30.2672, 'longitude': -97.7431},
+        'Dallas, TX': {'latitude': 32.7767, 'longitude': -96.7970},
+        'San Antonio, TX': {'latitude': 29.4241, 'longitude': -98.4936},
+        'El Paso, TX': {'latitude': 31.7775, 'longitude': -106.4424}
+    }
+
+    # Map each property to its city's coordinates
+    properties_df['latitude'] = properties_df['location'].apply(lambda x: city_coords.get(x, {}).get('latitude'))
+    properties_df['longitude'] = properties_df['location'].apply(lambda x: city_coords.get(x, {}).get('longitude'))
+
+
     # Define user personas with their names and descriptions
     user_personas = {
         1: {'name': 'John S.', 'persona': 'The "Office Investor" with a focus on high-end, stable assets.'},
@@ -378,6 +392,16 @@ if st.session_state.page == 'list':
     main_list_col, rec_sidebar_col = st.columns([3, 1])
 
     with main_list_col:
+        
+        # Create map data
+        map_data = properties_df[['name', 'latitude', 'longitude', 'location']].copy()
+        map_data['size'] = 100  # Default size for each point
+        
+        # Display the map
+        st.subheader("Property Distribution")
+        st.map(map_data, size='size', use_container_width=True)
+        st.markdown("---")
+
         search_query = st.text_input(
             'Enter a State, City, Zip code, or Property name',
             placeholder="e.g., Houston, TX, 77001, Park Avenue Tower"
