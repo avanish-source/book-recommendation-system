@@ -439,8 +439,9 @@ if st.session_state.page == 'list':
         user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
         
         # The user dropdown is now less wide to align with the "Suggested for you" section
-        selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
-        st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+        with st.container():
+            selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
+            st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
         
         # The "Suggested for you" section has a distinct background
         with st.container(border=True):
