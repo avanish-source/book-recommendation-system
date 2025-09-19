@@ -351,10 +351,9 @@ if st.session_state.page == 'list':
     
     top_bar_cols = st.columns([0.7, 0.3])
     with top_bar_cols[1]:
-        selected_user_name = st.selectbox('Simulate an investor profile:', user_names)
-
-    selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
-    st.session_state.current_user_id = selected_user_id
+        selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
+        st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+        st.markdown(f"<p style='margin-top: -15px; font-size: 14px;'><strong>Persona:</strong> {user_personas[st.session_state.current_user_id]['persona']}</p>", unsafe_allow_html=True)
     
     main_list_col, rec_sidebar_col = st.columns([3, 1])
 
@@ -416,11 +415,13 @@ if st.session_state.page == 'list':
                         st.rerun()
 
     with rec_sidebar_col:
-        st.markdown(f"<p><strong>Persona:</strong> {user_personas[selected_user_id]['persona']}</p>", unsafe_allow_html=True)
-        st.markdown("---")
         st.subheader('Suggested for you')
-        st.markdown("<small><i>Based on what other investors like you have viewed and liked.</i></small>", unsafe_allow_html=True)
-        collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id, user_personas, num_recommendations=10)
+        st.markdown(f"""<p style='font-size: 14px;'>
+            Based on what other investors like you have **viewed** or **liked**.
+            <br><small><i>Similar investors share common traits, investment strategies, and have a similar history of liking properties like yours.</i></small>
+        </p>""", unsafe_allow_html=True)
+        
+        collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, st.session_state.current_user_id, user_personas, num_recommendations=10)
 
         for rec_row in collab_recs_on_top.itertuples():
             with st.container(border=True):
