@@ -98,8 +98,10 @@ def load_data():
 def content_based_recommendations(properties_df, property_id, num_recommendations=5):
     """
     Recommends properties based on feature similarity (content-based).
-    The feature vector now includes more granular CRE data and is normalized.
+    Returns a DataFrame of recommendations and a text-based explanation.
     """
+    ref_property = properties_df[properties_df['id'] == property_id].iloc[0]
+    
     # Create a feature matrix from numerical and categorical features
     numerical_features = properties_df[['sqft', 'price_usd', 'cap_rate', 'occupancy_rate']]
     
@@ -129,12 +131,19 @@ def content_based_recommendations(properties_df, property_id, num_recommendation
     # Get the indices of the top N most similar properties (excluding the property itself)
     top_indices = [i[0] for i in sim_scores[1:num_recommendations+1]]
     
-    return properties_df.iloc[top_indices]
+    # Generate the explanation text
+    explanation = (
+        f"These recommendations are based on a content-based model. We analyzed the selected property's attributes, "
+        f"such as its **{ref_property['type']}** type, **{ref_property['subtype']}** subtype, and **{ref_property['location']}** location. "
+        "The model then found other properties with the most similar characteristics, including shared financial metrics like **Cap Rate**."
+    )
+    
+    return properties_df.iloc[top_indices], explanation
 
-def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, num_recommendations=5):
+def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, user_personas, num_recommendations=5):
     """
     Recommends properties based on user-item ratings (collaborative filtering).
-    This is a simplified user-based collaborative filtering approach.
+    Returns a DataFrame of recommendations and a detailed explanation.
     """
     # Create a user-item matrix
     user_item_matrix = ratings_df.pivot_table(index='user_id', columns='id', values='rating').fillna(0)
@@ -155,13 +164,26 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
     # Get the properties already liked by the current user
     current_user_liked_properties = set(user_item_matrix.loc[user_id][user_item_matrix.loc[user_id] > 0].index)
     
+    # Find common properties liked by both the current user and similar users
+    common_properties = properties_df[properties_df['id'].isin(list(current_user_liked_properties & similar_users_liked_properties))]
+    common_prop_names = common_properties['name'].tolist()
+    common_prop_list = ", ".join(common_prop_names)
+    
     # Recommend properties that similar users liked but the current user hasn't seen
     recommendation_ids = list(similar_users_liked_properties - current_user_liked_properties)
     
     # Return a DataFrame of the recommended properties
     recommended_df = properties_df[properties_df['id'].isin(recommendation_ids)]
     
-    return recommended_df.head(num_recommendations), similar_users
+    # Generate the explanation text
+    similar_users_names = [user_personas[uid]['name'] for uid in similar_users]
+    explanation = (
+        f"This model found a similarity between you and other investors, such as **{similar_users_names[0]}** and **{similar_users_names[1]}**. "
+        f"You have a shared interest in properties like **{common_prop_list}**. "
+        f"Based on this shared taste, the model recommends other properties that they liked but you haven't seen."
+    )
+    
+    return recommended_df.head(num_recommendations), similar_users, explanation
 
 # --- Streamlit UI ---
 # This section builds the user interface.
@@ -195,12 +217,6 @@ st.markdown("""
             width: 100%;
             height: auto;
         }
-        .recommendation-carousel {
-            display: flex;
-            overflow-x: auto;
-            gap: 15px;
-            padding: 10px 0;
-        }
         .recommendation-card {
             min-width: 250px;
             max-width: 250px;
@@ -215,6 +231,18 @@ st.markdown("""
             width: 100%;
             height: auto;
             margin-bottom: 10px;
+        }
+        .watermark {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            color: #888888;
+            background: #ffffff;
+            padding: 5px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -257,7 +285,7 @@ if st.session_state.page == 'list':
         col = cols[i % 3]
         with col:
             with st.container(border=True):
-                st.image(row['image_url'], use_column_width=True)
+                st.image(row['image_url'], use_container_width=True)
                 st.subheader(row['name'])
                 st.markdown(f"<small>{row['address']}, {row['location']} {row['zip_code']}</small>", unsafe_allow_html=True)
                 st.markdown(f"**{row['investment_type']}**")
@@ -278,7 +306,7 @@ elif st.session_state.page == 'details':
     # --- Main Property Listing View ---
     st.header(ref_property['name'])
     st.markdown(f"<small>{ref_property['address']}, {ref_property['location']} {ref_property['zip_code']}</small>", unsafe_allow_html=True)
-    st.image(ref_property['image_url'], use_column_width=True)
+    st.image(ref_property['image_url'], use_container_width=True)
 
     main_col1, main_col2, main_col3 = st.columns(3)
     with main_col1:
@@ -289,63 +317,61 @@ elif st.session_state.page == 'details':
         st.metric(label="Occupancy Rate", value=f"{ref_property['occupancy_rate']:.2f}%")
 
     st.markdown("---")
+    st.markdown('<div class="watermark">Powered by Prophecy AI</div>', unsafe_allow_html=True)
 
-    # --- Recommendation Sections with Carousels ---
-    st.subheader('You May Also Like')
-    st.markdown("These properties are **similar** to the one you're viewing, based on key attributes.")
-    
-    content_recs = content_based_recommendations(properties_df, selected_property_id)
-    
-    st.markdown('<div class="recommendation-carousel">', unsafe_allow_html=True)
-    for _, rec_row in content_recs.iterrows():
-        st.markdown(f"""
-            <div class="recommendation-card">
-                <img src="{rec_row['image_url']}">
-                <h6>{rec_row['name']}</h6>
-                <p><small>{rec_row['location']}</small></p>
-                <p><strong>{rec_row['type']}</strong></p>
-            </div>
-        """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # --- Recommendation Sections with unified view ---
+    st.markdown("### Personalized Recommendations")
+    rec_col1, rec_col2 = st.columns(2)
 
-    st.markdown("---")
-
-    st.subheader('What Similar Investors Like')
-    st.markdown("These properties are recommended based on the tastes of investors like you.")
-
-    user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
-    selected_user_name = st.selectbox(
-        '**Simulate an investor profile:**',
-        user_names
-    )
-    selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
-    st.markdown(f"<p><strong>Persona:</strong> {user_personas[selected_user_id]['persona']}</p>", unsafe_allow_html=True)
-    
-    collaborative_recs, similar_users_ids = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id)
-    similar_users_names = [user_personas[uid]['name'] for uid in similar_users_ids]
-
-    if not collaborative_recs.empty:
-        st.info(
-            f"These recommendations are based on properties liked by investors with similar tastes, "
-            f"such as **{similar_users_names[0]}** and **{similar_users_names[1]}**."
+    with rec_col1:
+        st.subheader('You May Also Like')
+        st.markdown(
+            "These properties are **similar** to the one you're viewing, based on key attributes."
         )
-        st.markdown('<div class="recommendation-carousel">', unsafe_allow_html=True)
-        for _, rec_row in collaborative_recs.iterrows():
-            st.markdown(f"""
-                <div class="recommendation-card">
-                    <img src="{rec_row['image_url']}">
-                    <h6>{rec_row['name']}</h6>
-                    <p><small>{rec_row['location']}</small></p>
-                    <p><strong>{rec_row['type']}</strong></p>
-                </div>
-            """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        st.info("No new recommendations found for this user. Try a different user or add more data!")
+        content_recs, content_explanation = content_based_recommendations(properties_df, selected_property_id)
+        st.info(content_explanation)
+        
+        # Display recommendations in a vertical list within the column
+        for _, rec_row in content_recs.iterrows():
+            with st.container(border=True):
+                st.image(rec_row['image_url'], use_container_width=True)
+                st.markdown(f"**{rec_row['name']}**")
+                st.markdown(f"<small>{rec_row['location']}</small>", unsafe_allow_html=True)
+                st.markdown(f"**{rec_row['investment_type']}**")
+
+    with rec_col2:
+        st.subheader('What Similar Investors Like')
+        st.markdown(
+            "These properties are recommended based on the tastes of investors like you."
+        )
+        
+        user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
+        selected_user_name = st.selectbox(
+            '**Simulate an investor profile:**',
+            user_names
+        )
+        selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+        
+        st.markdown(f"<p><strong>Persona:</strong> {user_personas[selected_user_id]['persona']}</p>", unsafe_allow_html=True)
+        
+        collaborative_recs, similar_users_ids, collab_explanation = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id, user_personas)
+        
+        if not collaborative_recs.empty:
+            st.info(collab_explanation)
+            
+            # Display recommendations in a vertical list within the column
+            for _, rec_row in collaborative_recs.iterrows():
+                with st.container(border=True):
+                    st.image(rec_row['image_url'], use_container_width=True)
+                    st.markdown(f"**{rec_row['name']}**")
+                    st.markdown(f"<small>{rec_row['location']}</small>", unsafe_allow_html=True)
+                    st.markdown(f"**{rec_row['investment_type']}**")
+        else:
+            st.info("No new recommendations found for this user. Try a different user or add more data!")
 
 st.sidebar.header("How to Use this Demo")
 st.sidebar.info(
     "**1. Search:** Start by using the search bar to find properties.\n\n"
     "**2. Listing Details:** Click 'View Details' on a card to see the full property listing.\n\n"
-    "**3. Recommendations:** The two horizontal carousels at the bottom will show you personalized recommendations based on the hybrid model."
+    "**3. Recommendations:** The two panels will show you personalized recommendations based on the hybrid model."
 )
