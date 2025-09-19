@@ -558,7 +558,23 @@ elif st.session_state.page == 'details':
 
     with rec_col2:
         st.subheader('What Similar Investors Like')
-        st.markdown("<small><i>These properties are recommended based on the tastes of investors like you.</i></small>", unsafe_allow_html=True)
+        
+        # Help icon with a pop-up explanation
+        with st.expander("❓ How we derive similar taste"):
+            st.markdown("""
+                ### How We Are Deriving Similar Taste
+                This model finds other investors who have a similar **taste profile** to you.
+                
+                A taste profile is not based on your personal information, but on your **actions** within the app, such as:
+                - **Viewing** a property listing.
+                - **Liking** a property (a strong signal).
+                - **Downloading documents** for a property (a very strong signal).
+                - The **time spent on a page** and other key behaviors.
+                
+                By analyzing these patterns, the system uses a mathematical approach to find investors whose taste profiles are a strong match to yours. It then recommends properties that they liked but you haven't seen. This helps you discover opportunities that are highly relevant to your investment style.
+                
+                **Alternative Approaches:** In a full application, we could also determine similarity based on a combination of these behaviors and other factors, such as demographic data, to create an even more powerful and personalized recommendation.
+            """, unsafe_allow_html=True)
         
         user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
         selected_user_name = st.selectbox(
@@ -584,4 +600,3 @@ elif st.session_state.page == 'details':
                     st.markdown(f"**{rec_row['investment_type']}**")
         else:
             st.info("No new recommendations found for this user. Try a different user or add more data!")
-
