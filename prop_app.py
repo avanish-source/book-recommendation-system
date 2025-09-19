@@ -4,6 +4,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import re
+import os
 
 # --- Data Generation and Session State ---
 # This section creates a dummy dataset and manages user interactions.
@@ -11,6 +12,18 @@ import re
 @st.cache_data
 def load_data():
     """Loads and preprocesses dummy data for properties and user ratings."""
+    # try:
+    #     properties_df = pd.read_csv('properties.csv')
+    # except FileNotFoundError:
+    #     st.error("properties.csv not found. Please upload the file to the same directory as the app.")
+    #     return pd.DataFrame(), pd.DataFrame(), {}
+    
+    # # Assuming your image files are in a folder named 'images'
+    # # and are named after the property ID (e.g., '123.jpg')
+    # # This line creates the image URL column for Streamlit
+    # properties_df['image_url'] = properties_df['id'].apply(lambda x: f"images/{x}.jpg")
+
+    # Reverting to dummy data for now
     data = {
         'id': range(1, 101),
         'name': [
@@ -94,26 +107,31 @@ def load_data():
 
     return properties_df, ratings_df, user_personas
 
-# --- Recommendation Logic ---
-# This section contains the core recommendation functions.
-
 def get_user_interactions_df(ratings_df, selected_user_id):
-    """Combines static ratings with dynamic session state interactions."""
-    # Create a DataFrame from session state liked properties for the selected user
+    """Combines static ratings with dynamic session state interactions and assigns weights."""
     user_likes = st.session_state.liked_properties.get(selected_user_id, [])
+    user_downloads = st.session_state.downloaded_brochures.get(selected_user_id, [])
     user_views = st.session_state.viewed_properties.get(selected_user_id, [])
+
+    # Assign weights to different interaction types
+    like_weight = 3
+    download_weight = 2
+    view_weight = 1
     
-    # Combine liked and viewed properties into a single interaction set
-    user_interactions = list(set(user_likes + user_views))
+    interaction_data = []
     
-    if user_interactions:
-        new_interactions_df = pd.DataFrame({
-            'user_id': selected_user_id, 
-            'id': user_interactions, 
-            'rating': 1
-        })
-        # Merge with original ratings, dropping duplicates
-        all_ratings_df = pd.concat([ratings_df, new_interactions_df], ignore_index=True).drop_duplicates(subset=['user_id', 'id'])
+    for prop_id in set(user_likes):
+        interaction_data.append({'user_id': selected_user_id, 'id': prop_id, 'rating': like_weight})
+    
+    for prop_id in set(user_downloads) - set(user_likes):
+        interaction_data.append({'user_id': selected_user_id, 'id': prop_id, 'rating': download_weight})
+
+    for prop_id in set(user_views) - set(user_likes) - set(user_downloads):
+        interaction_data.append({'user_id': selected_user_id, 'id': prop_id, 'rating': view_weight})
+    
+    if interaction_data:
+        new_interactions_df = pd.DataFrame(interaction_data)
+        all_ratings_df = pd.concat([ratings_df, new_interactions_df], ignore_index=True).drop_duplicates(subset=['user_id', 'id'], keep='last')
     else:
         all_ratings_df = ratings_df.copy()
         
@@ -327,6 +345,8 @@ if 'liked_properties' not in st.session_state:
     st.session_state.liked_properties = {}
 if 'viewed_properties' not in st.session_state:
     st.session_state.viewed_properties = {}
+if 'downloaded_brochures' not in st.session_state:
+    st.session_state.downloaded_brochures = {}
 if 'current_user_id' not in st.session_state:
     st.session_state.current_user_id = 1
 
@@ -417,9 +437,12 @@ if st.session_state.page == 'list':
     with rec_sidebar_col:
         st.markdown("<p style='font-weight: bold; margin-bottom: 0;'>Logged In User</p>", unsafe_allow_html=True)
         user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
+        
+        # The user dropdown is now less wide to align with the "Suggested for you" section
         selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
         st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
         
+        # The "Suggested for you" section has a distinct background
         with st.container(border=True):
             st.subheader('Suggested for you')
             st.markdown(f"""
@@ -499,6 +522,16 @@ elif st.session_state.page == 'details':
                 else:
                     st.session_state.liked_properties[st.session_state.current_user_id].remove(selected_property_id)
                     st.info("Property unliked.")
+                st.rerun()
+            
+            # Add a button for high-intent document download
+            is_downloaded = selected_property_id in st.session_state.downloaded_brochures.get(st.session_state.current_user_id, [])
+            if st.button("Download Brochure", key="download_button", use_container_width=True):
+                if not is_downloaded:
+                    st.session_state.downloaded_brochures.setdefault(st.session_state.current_user_id, []).append(selected_property_id)
+                    st.success("Brochure downloaded! This high-intent action will be used to improve recommendations.")
+                else:
+                    st.info("Brochure already downloaded.")
                 st.rerun()
 
             st.button("Contact Advisor", use_container_width=True)
