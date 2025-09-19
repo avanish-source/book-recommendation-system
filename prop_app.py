@@ -137,7 +137,7 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
 # --- Streamlit UI ---
 # This section builds the user interface.
 
-st.set_page_c11onfig(layout="wide")
+st.set_page_config(layout="wide")
 
 st.title('Commercial Real Estate Recommendation Engine')
 st.markdown('### A Hybrid Approach to Data-Driven Property Discovery')
