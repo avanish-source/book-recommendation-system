@@ -194,10 +194,9 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
     similar_users_names = [user_personas[uid]['name'] for uid in similar_users if uid in user_personas]
     
     explanation = (
-        "This model finds properties based on the **shared taste** of investors like you. "
-        "We first created a data matrix where each row represents an investor's liked and viewed properties. "
-        "The system then used a mathematical technique called **cosine similarity** to measure how similar your 'like' history is to other investors. "
-        f"The system found a strong taste match between you and investors like **{similar_users_names[0]}** and **{similar_users_names[1]}**. "
+        "This model finds properties based on the shared taste of investors like you. "
+        "We analyze your history of viewed, liked, and other high-intent actions like time on page and document downloads to build your unique taste profile. "
+        "The system found a strong taste match between you and investors like **{similar_users_names[0]}** and **{similar_users_names[1]}**. "
         f"You have a shared interest in properties like **{common_prop_list}**. Based on this shared taste, the model recommends other properties they liked but you haven't seen."
     )
     
@@ -305,6 +304,16 @@ st.markdown("""
             position: sticky;
             top: 20px;
         }
+        .highlight-container {
+            border: 1px solid #e0e0e0;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .user-select-container {
+            width: 250px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -346,15 +355,6 @@ if st.session_state.page == 'list':
     
     st.markdown("### Find your next investment opportunity.")
 
-    # Persona selection on the main list page for personalized recommendations
-    user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
-    
-    top_bar_cols = st.columns([0.7, 0.3])
-    with top_bar_cols[1]:
-        st.markdown("<p style='font-weight: bold; margin-bottom: 0;'>Logged In User</p>", unsafe_allow_html=True)
-        selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
-        st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
-    
     main_list_col, rec_sidebar_col = st.columns([3, 1])
 
     with main_list_col:
@@ -415,14 +415,21 @@ if st.session_state.page == 'list':
                         st.rerun()
 
     with rec_sidebar_col:
-        st.subheader('Suggested for you')
-        st.markdown(f"""
-            <div style="font-size: 14px; margin-top: -10px;">
-                <p><strong>Persona:</strong> {user_personas[st.session_state.current_user_id]['persona']}</p>
-                <small><i>Based on what other investors like you have viewed or liked.</i></small>
-            </div>
-        """, unsafe_allow_html=True)
-        
+        with st.container(border=True):
+            st.markdown("<p style='font-weight: bold; margin-bottom: 0;'>Logged In User</p>", unsafe_allow_html=True)
+            selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
+            st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+
+            st.markdown("<div class='highlight-container'>")
+            st.subheader('Suggested for you')
+            st.markdown(f"""
+                <div style="font-size: 14px; margin-top: -10px;">
+                    <p><strong>Persona:</strong> {user_personas[st.session_state.current_user_id]['persona']}</p>
+                    <small><i>Based on what other investors like you have viewed or liked.</i></small>
+                </div>
+            """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
         collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, st.session_state.current_user_id, user_personas, num_recommendations=10)
 
         for rec_row in collab_recs_on_top.itertuples():
