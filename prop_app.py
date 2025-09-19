@@ -584,3 +584,4 @@ elif st.session_state.page == 'details':
                     st.markdown(f"**{rec_row['investment_type']}**")
         else:
             st.info("No new recommendations found for this user. Try a different user or add more data!")
+
