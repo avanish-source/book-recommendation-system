@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
+import re
 
 # --- Data Generation ---
 # This section creates a dummy dataset of 100 properties and a simple user-rating dataset.
@@ -25,11 +26,16 @@ def load_data():
             'Warehouse', 'Class B', 'Strip Mall', 'Flex Space', 'Class A'
         ] * 10,
         'location': ['Houston, TX', 'Austin, TX', 'Dallas, TX', 'San Antonio, TX', 'El Paso, TX'] * 20,
+        'address': [
+            '123 Main St', '456 Oak Ave', '789 Pine Blvd', '101 Maple Dr', '202 Birch Rd'
+        ] * 20,
+        'zip_code': [77001, 78701, 75201, 78205, 79901] * 20,
         'sqft': np.random.randint(5000, 150000, 100),
         'price_usd': np.random.randint(1_000_000, 100_000_000, 100),
         'cap_rate': np.round(np.random.uniform(3.5, 8.0, 100), 2),
         'occupancy_rate': np.round(np.random.uniform(0.75, 1.0, 100), 2),
-        'image_url': [f"https://placehold.co/100x75/F1F5F9/265882?text=CRE-{i}" for i in range(1, 101)]
+        'image_url': [f"https://placehold.co/100x75/F1F5F9/265882?text=CRE-{i}" for i in range(1, 101)],
+        'investment_type': ['Opportunistic', 'Core-Plus', 'Value-Add', 'Core', 'Opportunistic'] * 20
     }
     properties_df = pd.DataFrame(data)
 
@@ -102,8 +108,8 @@ def content_based_recommendations(properties_df, property_id, num_recommendation
     normalized_numerical = pd.DataFrame(scaler.fit_transform(numerical_features), columns=numerical_features.columns)
 
     # One-hot encode categorical features (type, subtype, and location)
-    categorical_features = properties_df[['type', 'subtype', 'location']]
-    encoded_features = pd.get_dummies(categorical_features, prefix=['type', 'subtype', 'loc'])
+    categorical_features = properties_df[['type', 'subtype', 'location', 'investment_type']]
+    encoded_features = pd.get_dummies(categorical_features, prefix=['type', 'subtype', 'loc', 'inv_type'])
 
     # Combine all features into a single dataframe
     features_df = pd.concat([normalized_numerical, encoded_features], axis=1)
@@ -162,102 +168,131 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
 
 st.set_page_config(layout="wide")
 
-st.title('Commercial Real Estate Recommendation Engine')
-st.markdown("### Powered by a Hybrid Recommendation Model")
-st.markdown("---")
+# Initialize session state for navigation
+if 'page' not in st.session_state:
+    st.session_state.page = 'list'
+if 'selected_property_id' not in st.session_state:
+    st.session_state.selected_property_id = None
 
 properties_df, ratings_df, user_personas = load_data()
 
-# Main Property Selection UI
-selected_property_name = st.selectbox(
-    '**Select a Property to View its Listing and Recommendations:**',
-    options=properties_df['name'],
-    format_func=lambda x: f"{x} ({properties_df[properties_df['name'] == x]['location'].iloc[0]})"
-)
-
-selected_property_id = properties_df[properties_df['name'] == selected_property_name]['id'].iloc[0]
-ref_property = properties_df[properties_df['id'] == selected_property_id].iloc[0]
-
-# --- Main Property Listing View ---
-st.header(ref_property['name'])
-st.image(ref_property['image_url'], use_column_width=True)
-
-main_col1, main_col2, main_col3 = st.columns(3)
-with main_col1:
-    st.metric(label="Price", value=f"${ref_property['price_usd']:,}")
-with main_col2:
-    st.metric(label="Cap Rate", value=f"{ref_property['cap_rate']:.2f}%")
-with main_col3:
-    st.metric(label="Occupancy Rate", value=f"{ref_property['occupancy_rate']:.2f}%")
-
-st.markdown("### Property Details")
-st.markdown(f"**Type:** {ref_property['type']} | **Subtype:** {ref_property['subtype']} | **Location:** {ref_property['location']} | **SQFT:** {ref_property['sqft']:,}")
-
-st.markdown("---")
-
-# --- Recommendation Sections ---
-col1, col2 = st.columns(2)
-
-# Content-Based Filtering Section (left column)
-with col1:
-    st.subheader('Properties You May Also Like')
-    st.markdown(
-        "These are properties **similar** to the one you're viewing, based on key attributes like "
-        "type, location, and financial metrics."
-    )
+# Home Page: List of properties
+if st.session_state.page == 'list':
+    st.title('Commercial Real Estate Recommendation Engine')
+    st.markdown("### Powered by a Hybrid Recommendation Model")
     
-    recommendations = content_based_recommendations(properties_df, selected_property_id)
-    
-    st.dataframe(
-        recommendations[['image_url', 'name', 'type', 'location']],
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "image_url": st.column_config.ImageColumn("Preview"),
-            "name": "Name",
-            "type": "Type",
-            "location": "Location"
-        }
+    search_query = st.text_input(
+        'Enter a State, City, Zip code, or Property name',
+        placeholder="e.g., Houston, TX, 77001, Park Avenue Tower"
     )
 
-# Collaborative Filtering Section (right column)
-with col2:
-    st.subheader('Properties Similar Investors Like')
-    st.markdown(
-        "Discover properties you might not have found on your own. This model recommends properties "
-        "that other investors with a similar taste profile have liked."
-    )
+    st.markdown(f"**Properties** {len(properties_df)} results")
+    st.markdown("---")
     
-    user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
-    selected_user_name = st.selectbox(
-        '**Simulate an investor profile:**',
-        user_names
-    )
-    selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
-    
-    st.markdown(f"**User Persona:** {user_personas[selected_user_id]['persona']}")
-    
-    recommendations, similar_users_ids = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id)
-    similar_users_names = [user_personas[uid]['name'] for uid in similar_users_ids]
-
-    if not recommendations.empty:
-        st.info(
-            f"These recommendations are based on properties liked by investors with similar tastes, "
-            f"such as **{similar_users_names[0]}** and **{similar_users_names[1]}**."
-        )
-        st.dataframe(
-            recommendations[['image_url', 'name', 'type', 'location']],
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "image_url": st.column_config.ImageColumn("Preview"),
-                "name": "Name",
-                "type": "Type",
-                "location": "Location"
-            }
-        )
+    # Filter properties based on search query
+    if search_query:
+        # Use a case-insensitive regex search across relevant columns
+        filtered_df = properties_df[properties_df.apply(
+            lambda row: any(re.search(search_query, str(row[col]), re.IGNORECASE) for col in ['name', 'location', 'zip_code', 'address']),
+            axis=1
+        )]
     else:
-        st.info("No new recommendations found for this user. Try a different user or add more data!")
+        filtered_df = properties_df.copy()
+
+    # Display properties in a grid layout
+    cols = st.columns(3)
+    for i, row in filtered_df.iterrows():
+        col = cols[i % 3]
+        with col:
+            with st.container(border=True):
+                st.image(row['image_url'], use_column_width=True)
+                st.subheader(row['name'])
+                st.markdown(f"<small>{row['address']}, {row['location']} {row['zip_code']}</small>", unsafe_allow_html=True)
+                st.markdown(f"**{row['investment_type']}**")
+                if st.button('View Details', key=f"btn_{row['id']}", use_container_width=True):
+                    st.session_state.page = 'details'
+                    st.session_state.selected_property_id = row['id']
+                    st.rerun()
+
+# Details Page: Single property listing and recommendations
+elif st.session_state.page == 'details':
+    if st.button("← Back to Listings"):
+        st.session_state.page = 'list'
+        st.rerun()
+
+    selected_property_id = st.session_state.selected_property_id
+    ref_property = properties_df[properties_df['id'] == selected_property_id].iloc[0]
+
+    # --- Main Property Listing View ---
+    st.header(ref_property['name'])
+    st.image(ref_property['image_url'], use_column_width=True)
+
+    main_col1, main_col2, main_col3 = st.columns(3)
+    with main_col1:
+        st.metric(label="Price", value=f"${ref_property['price_usd']:,}")
+    with main_col2:
+        st.metric(label="Cap Rate", value=f"{ref_property['cap_rate']:.2f}%")
+    with main_col3:
+        st.metric(label="Occupancy Rate", value=f"{ref_property['occupancy_rate']:.2f}%")
+
+    st.markdown("### Property Details")
+    st.markdown(f"**Type:** {ref_property['type']} | **Subtype:** {ref_property['subtype']} | **Location:** {ref_property['location']} | **SQFT:** {ref_property['sqft']:,}")
+    st.markdown(f"**Investment Type:** {ref_property['investment_type']}")
+    st.markdown("---")
+
+    # --- Recommendation Sections ---
+    col1, col2 = st.columns(2)
+
+    # Content-Based Filtering Section (left column)
+    with col1:
+        st.subheader('Properties You May Also Like')
+        st.markdown(
+            "These are properties **similar** to the one you're viewing, based on key attributes like "
+            "type, location, and financial metrics."
+        )
+        
+        recommendations = content_based_recommendations(properties_df, selected_property_id)
+        
+        # Display each recommendation as a card
+        for _, rec_row in recommendations.iterrows():
+            with st.container(border=True):
+                st.image(rec_row['image_url'], use_column_width=True)
+                st.markdown(f"**{rec_row['name']}**")
+                st.markdown(f"<small>{rec_row['location']}</small>", unsafe_allow_html=True)
+
+    # Collaborative Filtering Section (right column)
+    with col2:
+        st.subheader('Properties Similar Investors Like')
+        st.markdown(
+            "Discover properties you might not have found on your own. This model recommends properties "
+            "that other investors with a similar taste profile have liked."
+        )
+        
+        user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
+        selected_user_name = st.selectbox(
+            '**Simulate an investor profile:**',
+            user_names
+        )
+        selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+        
+        st.markdown(f"**User Persona:** {user_personas[selected_user_id]['persona']}")
+        
+        recommendations, similar_users_ids = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id)
+        similar_users_names = [user_personas[uid]['name'] for uid in similar_users_ids]
+
+        if not recommendations.empty:
+            st.info(
+                f"These recommendations are based on properties liked by investors with similar tastes, "
+                f"such as **{similar_users_names[0]}** and **{similar_users_names[1]}**."
+            )
+            # Display each recommendation as a card
+            for _, rec_row in recommendations.iterrows():
+                with st.container(border=True):
+                    st.image(rec_row['image_url'], use_column_width=True)
+                    st.markdown(f"**{rec_row['name']}**")
+                    st.markdown(f"<small>{rec_row['location']}</small>", unsafe_allow_html=True)
+        else:
+            st.info("No new recommendations found for this user. Try a different user or add more data!")
 
 st.sidebar.header("How to Use this Demo")
 st.sidebar.info(
