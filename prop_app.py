@@ -562,18 +562,32 @@ elif st.session_state.page == 'details':
         
         # Help icon with a pop-up explanation
         with st.expander("❓ How we derive similar taste"):
-            st.markdown("""
+            st.markdown(r"""
                 ### How We Are Deriving Similar Taste
                 This model finds other investors who have a similar **taste profile** to you.
                 
-                A taste profile is not based on your personal information, but on your **actions** within the app, such as:
-                - **Viewing** a property listing.
-                - **Liking** a property (a strong signal).
-                - **Downloading documents** for a property (a very strong signal).
+                A taste profile is not based on your personal information, but on your **actions** within the app. Each action is given a weight to show its importance:
                 
-                By analyzing these patterns, the system uses a mathematical approach to find investors whose taste profiles are a strong match to yours. It then recommends properties that they liked but you haven't seen. This helps you discover opportunities that are highly relevant to your investment style.
+                | Action | Weight |
+                |:--- | :---:|
+                | Liked a property | 3 |
+                | Downloaded documents | 2 |
+                | Viewed a property | 1 |
                 
-                **Alternative Approaches:** In a full application, we could also determine similarity based on a combination of these behaviors and other factors, such as demographic data, to create an even more powerful and personalized recommendation.
+                By analyzing these actions, the system creates a numerical profile for each user. For example, let's say we have three users and three properties: 'Park Avenue Tower', 'Urban Retail Plaza', and 'Central Industrial Hub'.
+                
+                | User | Park Avenue Tower | Urban Retail Plaza | Central Industrial Hub |
+                |:---|:---:|:---:|:---:|
+                | **John S.** | 3 (Liked) | 1 (Viewed) | 0 |
+                | **Emily W.**| 3 (Liked) | 2 (Downloaded) | 0 |
+                | **Chris L.**| 0 | 1 (Viewed) | 3 (Liked) |
+                
+                The system then calculates a **similarity score** between 0 and 1 by comparing these profiles. A score close to 1 means a strong match.
+                
+                * When comparing **John S. and Emily W.**, the system sees they have a similar pattern of interactions and calculates a high score of **0.96**.
+                * When comparing **John S. and Chris L.**, the system sees their patterns are very different, resulting in a low score of **0.1**.
+                
+                Based on this, the model recommends properties that Emily W. liked to John S., as they share a strong taste profile.
             """, unsafe_allow_html=True)
         
         user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
