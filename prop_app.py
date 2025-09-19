@@ -35,7 +35,10 @@ def load_data():
         'cap_rate': np.round(np.random.uniform(3.5, 8.0, 100), 2),
         'occupancy_rate': np.round(np.random.uniform(0.75, 1.0, 100), 2),
         'image_url': [f"https://placehold.co/100x75/F1F5F9/265882?text=CRE-{i}" for i in range(1, 101)],
-        'investment_type': ['Opportunistic', 'Core-Plus', 'Value-Add', 'Core', 'Opportunistic'] * 20
+        'investment_type': ['Opportunistic', 'Core-Plus', 'Value-Add', 'Core', 'Opportunistic'] * 20,
+        'year_built': np.random.randint(1950, 2020, 100),
+        'units': np.random.randint(5, 500, 100),
+        'advisor_name': ['Mitchell Belcher', 'Jeff Irish', 'Travis Prince', 'Chris Bruzas'] * 25
     }
     properties_df = pd.DataFrame(data)
 
@@ -264,6 +267,29 @@ st.markdown("""
         .header-nav a:hover {
             text-decoration: underline;
         }
+        /* Custom styling for property names on cards to match reference image */
+        .card-title {
+            color: #005C9E;
+            font-weight: bold;
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .section-header {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333333;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .sidebar-card {
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            background-color: #ffffff;
+            position: sticky;
+            top: 20px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -322,9 +348,14 @@ if st.session_state.page == 'list':
         with col:
             with st.container(border=True):
                 st.image(row['image_url'], use_container_width=True)
-                st.subheader(row['name'])
+                st.markdown(f"<h4 class='card-title'>{row['name']}</h4>", unsafe_allow_html=True)
                 st.markdown(f"<small>{row['address']}, {row['location']} {row['zip_code']}</small>", unsafe_allow_html=True)
                 st.markdown(f"**{row['investment_type']}**")
+                st.markdown(f"""
+                    <p style='margin: 0; font-size: 14px;'>Built {row['year_built']} • Units {row['units']}</p>
+                    <p style='margin: 0; font-size: 14px;'>{row['type']} Housing</p>
+                    <p style='margin: 0; font-size: 14px;'>Advisor: <strong>{row['advisor_name']}</strong></p>
+                """, unsafe_allow_html=True)
                 if st.button('View Details', key=f"btn_{row['id']}", use_container_width=True):
                     st.session_state.page = 'details'
                     st.session_state.selected_property_id = row['id']
@@ -339,18 +370,48 @@ elif st.session_state.page == 'details':
     selected_property_id = st.session_state.selected_property_id
     ref_property = properties_df[properties_df['id'] == selected_property_id].iloc[0]
 
-    # --- Main Property Listing View ---
     st.header(ref_property['name'])
     st.markdown(f"<small>{ref_property['address']}, {ref_property['location']} {ref_property['zip_code']}</small>", unsafe_allow_html=True)
-    st.image(ref_property['image_url'], use_container_width=True)
 
-    main_col1, main_col2, main_col3 = st.columns(3)
-    with main_col1:
-        st.metric(label="Price", value=f"${ref_property['price_usd']:,}")
-    with main_col2:
-        st.metric(label="Cap Rate", value=f"{ref_property['cap_rate']:.2f}%")
-    with main_col3:
-        st.metric(label="Occupancy Rate", value=f"{ref_property['occupancy_rate']:.2f}%")
+    # Main content area
+    main_col, sidebar_col = st.columns([3, 1])
+
+    with main_col:
+        st.image(ref_property['image_url'], use_container_width=True)
+
+        st.markdown("<p class='section-header'>Property Overview</p>", unsafe_allow_html=True)
+        with st.expander("Details", expanded=True):
+            st.markdown(f"""
+                - **Property Type:** {ref_property['type']}
+                - **Property Subtype:** {ref_property['subtype']}
+                - **Investment Type:** {ref_property['investment_type']}
+                - **Square Footage:** {ref_property['sqft']:,} sqft
+                - **Year Built:** {ref_property['year_built']}
+                - **Units:** {ref_property['units']}
+            """)
+
+        with st.expander("Location & Demographics"):
+            st.markdown(f"""
+                - **Location:** {ref_property['location']}
+                - **Zip Code:** {ref_property['zip_code']}
+                - **Advisor:** {ref_property['advisor_name']}
+                - *<small>Note: Additional demographic and location data would be displayed here in a full application.</small>*
+            """, unsafe_allow_html=True)
+
+        with st.expander("Financials"):
+            st.markdown(f"""
+                - **Cap Rate:** {ref_property['cap_rate']:.2f}%
+                - **Occupancy Rate:** {ref_property['occupancy_rate']:.2f}%
+                - *<small>Note: Detailed pro forma, revenue, and expense data would be displayed here.</small>*
+            """, unsafe_allow_html=True)
+    
+    with sidebar_col:
+        with st.container(border=True):
+            st.subheader("Key Details")
+            st.metric(label="Price", value=f"${ref_property['price_usd']:,}")
+            st.metric(label="Cap Rate", value=f"{ref_property['cap_rate']:.2f}%")
+            st.metric(label="Occupancy Rate", value=f"{ref_property['occupancy_rate']:.2f}%")
+            st.button("Contact Advisor", use_container_width=True)
 
     st.markdown("---")
     st.markdown('<div class="watermark">Powered by Prophecy AI</div>', unsafe_allow_html=True)
