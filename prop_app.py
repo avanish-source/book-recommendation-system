@@ -348,79 +348,86 @@ if st.session_state.page == 'list':
 
     # Persona selection on the main list page for personalized recommendations
     user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
-    selected_user_name = st.sidebar.selectbox('Simulate an investor profile:', user_names)
+    
+    top_bar_cols = st.columns([0.7, 0.3])
+    with top_bar_cols[1]:
+        selected_user_name = st.selectbox('Simulate an investor profile:', user_names)
+
     selected_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
     st.session_state.current_user_id = selected_user_id
-    st.sidebar.markdown(f"<p><strong>Persona:</strong> {user_personas[selected_user_id]['persona']}</p>", unsafe_allow_html=True)
     
-    search_query = st.text_input(
-        'Enter a State, City, Zip code, or Property name',
-        placeholder="e.g., Houston, TX, 77001, Park Avenue Tower"
-    )
+    main_list_col, rec_sidebar_col = st.columns([3, 1])
 
-    # Collaborative recommendations at the top of the list page
-    collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id, user_personas)
-    if not collab_recs_on_top.empty:
+    with main_list_col:
+        search_query = st.text_input(
+            'Enter a State, City, Zip code, or Property name',
+            placeholder="e.g., Houston, TX, 77001, Park Avenue Tower"
+        )
+        
+        st.markdown("---")
+        st.markdown(f"**Properties** {len(properties_df)} results")
+        
+        # Filter properties based on search query
+        if search_query:
+            # Use a case-insensitive regex search across relevant columns
+            filtered_df = properties_df[properties_df.apply(
+                lambda row: any(re.search(search_query, str(row[col]), re.IGNORECASE) for col in ['name', 'location', 'zip_code', 'address']),
+                axis=1
+            )]
+        else:
+            filtered_df = properties_df.copy()
+    
+        # Display properties in a grid layout
+        cols = st.columns(3)
+        for i, row in filtered_df.iterrows():
+            col = cols[i % 3]
+            with col:
+                with st.container(border=True):
+                    st.image(row['image_url'], use_container_width=True)
+                    
+                    # Title with Like button
+                    title_col, like_col = st.columns([0.8, 0.2])
+                    with title_col:
+                        st.markdown(f"<h4 class='card-title'>{row['name']}</h4>", unsafe_allow_html=True)
+                    with like_col:
+                        is_liked = row['id'] in st.session_state.liked_properties.get(st.session_state.current_user_id, [])
+                        heart_icon = '❤️' if is_liked else '🤍'
+                        if st.button(heart_icon, key=f"like_{row['id']}"):
+                            if not is_liked:
+                                st.session_state.liked_properties.setdefault(st.session_state.current_user_id, []).append(row['id'])
+                                st.rerun()
+                            else:
+                                st.session_state.liked_properties[st.session_state.current_user_id].remove(row['id'])
+                                st.rerun()
+    
+                    st.markdown(f"<small>{row['address']}, {row['location']} {row['zip_code']}</small>", unsafe_allow_html=True)
+                    st.markdown(f"**{row['investment_type']}**")
+                    st.markdown(f"""
+                        <p style='margin: 0; font-size: 14px;'>Built {row['year_built']} • Units {row['units']}</p>
+                        <p style='margin: 0; font-size: 14px;'>{row['type']} Housing</p>
+                        <p style='margin: 0; font-size: 14px;'>Advisor: <strong>{row['advisor_name']}</strong></p>
+                    """, unsafe_allow_html=True)
+                    
+                    # Use a unique key for each button to avoid conflicts
+                    if st.button('View Details', key=f"view_{row['id']}", use_container_width=True):
+                        st.session_state.page = 'details'
+                        st.session_state.selected_property_id = row['id']
+                        st.session_state.viewed_properties.setdefault(st.session_state.current_user_id, []).append(row['id'])
+                        st.rerun()
+
+    with rec_sidebar_col:
+        st.markdown(f"<p><strong>Persona:</strong> {user_personas[selected_user_id]['persona']}</p>", unsafe_allow_html=True)
+        st.markdown("---")
         st.subheader('Suggested for you')
         st.markdown("<small><i>Based on what other investors like you have viewed and liked.</i></small>", unsafe_allow_html=True)
-        rec_cols = st.columns(5)
-        for i, rec_row in enumerate(collab_recs_on_top.itertuples()):
-            with rec_cols[i % 5]:
-                with st.container(border=True):
-                    st.image(rec_row.image_url, use_container_width=True)
-                    st.markdown(f"**{rec_row.name}**")
-                    st.button('View Details', key=f"rec_view_{rec_row.id}", use_container_width=True)
+        collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, selected_user_id, user_personas, num_recommendations=10)
 
-    st.markdown("---")
-    st.markdown(f"**Properties** {len(properties_df)} results")
-    
-    # Filter properties based on search query
-    if search_query:
-        # Use a case-insensitive regex search across relevant columns
-        filtered_df = properties_df[properties_df.apply(
-            lambda row: any(re.search(search_query, str(row[col]), re.IGNORECASE) for col in ['name', 'location', 'zip_code', 'address']),
-            axis=1
-        )]
-    else:
-        filtered_df = properties_df.copy()
-
-    # Display properties in a grid layout
-    cols = st.columns(3)
-    for i, row in filtered_df.iterrows():
-        col = cols[i % 3]
-        with col:
+        for rec_row in collab_recs_on_top.itertuples():
             with st.container(border=True):
-                st.image(row['image_url'], use_container_width=True)
-                
-                # Title with Like button
-                title_col, like_col = st.columns([0.8, 0.2])
-                with title_col:
-                    st.markdown(f"<h4 class='card-title'>{row['name']}</h4>", unsafe_allow_html=True)
-                with like_col:
-                    is_liked = row['id'] in st.session_state.liked_properties.get(st.session_state.current_user_id, [])
-                    heart_icon = '❤️' if is_liked else '🤍'
-                    if st.button(heart_icon, key=f"like_{row['id']}"):
-                        if not is_liked:
-                            st.session_state.liked_properties.setdefault(st.session_state.current_user_id, []).append(row['id'])
-                            st.rerun()
-                        else:
-                            st.session_state.liked_properties[st.session_state.current_user_id].remove(row['id'])
-                            st.rerun()
+                st.image(rec_row.image_url, use_container_width=True)
+                st.markdown(f"**{rec_row.name}**")
+                st.button('View Details', key=f"rec_sidebar_view_{rec_row.id}", use_container_width=True)
 
-                st.markdown(f"<small>{row['address']}, {row['location']} {row['zip_code']}</small>", unsafe_allow_html=True)
-                st.markdown(f"**{row['investment_type']}**")
-                st.markdown(f"""
-                    <p style='margin: 0; font-size: 14px;'>Built {row['year_built']} • Units {row['units']}</p>
-                    <p style='margin: 0; font-size: 14px;'>{row['type']} Housing</p>
-                    <p style='margin: 0; font-size: 14px;'>Advisor: <strong>{row['advisor_name']}</strong></p>
-                """, unsafe_allow_html=True)
-                
-                # Use a unique key for each button to avoid conflicts
-                if st.button('View Details', key=f"view_{row['id']}", use_container_width=True):
-                    st.session_state.page = 'details'
-                    st.session_state.selected_property_id = row['id']
-                    st.session_state.viewed_properties.setdefault(st.session_state.current_user_id, []).append(row['id'])
-                    st.rerun()
 
 # Details Page: Single property listing and recommendations
 elif st.session_state.page == 'details':
