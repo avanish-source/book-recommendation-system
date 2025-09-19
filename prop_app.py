@@ -136,12 +136,25 @@ def content_based_recommendations(properties_df, property_id, num_recommendation
     
     # Generate the explanation text
     explanation = (
-        f"These recommendations are based on a content-based model. We analyzed the selected property's attributes, "
-        f"such as its **{ref_property['type']}** type, **{ref_property['subtype']}** subtype, and **{ref_property['location']}** location. "
-        "The model then found other properties with the most similar characteristics, including shared financial metrics like **Cap Rate**."
+        f"This model uses **content-based filtering** to find similar properties. It analyzed the selected property's key attributes:"
+        f" - **Type:** {ref_property['type']}, **Subtype:** {ref_property['subtype']}"
+        f" - **Location:** {ref_property['location']}"
+        f" - **Key Metrics:** Cap Rate of {ref_property['cap_rate']}%, Occupancy Rate of {ref_property['occupancy_rate']:.0%}, and {ref_property['sqft']:,} sqft."
     )
     
-    return properties_df.iloc[top_indices], explanation
+    recommended_properties = properties_df.iloc[top_indices]
+    
+    rec_details = ""
+    for _, rec_row in recommended_properties.iterrows():
+        rec_details += (
+            f" - **{rec_row['name']}** in {rec_row['location']}. "
+            f"It was recommended because it shares a similar **{rec_row['type']}** type, "
+            f"has a Cap Rate of **{rec_row['cap_rate']:.2f}%**, and is of a similar size."
+        )
+    
+    explanation += "\n\nHere are the recommended properties and why they were chosen:\n\n" + rec_details
+    
+    return recommended_properties, explanation
 
 def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, user_personas, num_recommendations=5):
     """
@@ -170,7 +183,9 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
     # Find common properties liked by both the current user and similar users
     common_properties = properties_df[properties_df['id'].isin(list(current_user_liked_properties & similar_users_liked_properties))]
     common_prop_names = common_properties['name'].tolist()
-    common_prop_list = ", ".join(common_prop_names)
+    
+    # Ensure no duplicates in the common property list for a clean explanation
+    common_prop_list = ", ".join(list(set(common_prop_names)))
     
     # Recommend properties that similar users liked but the current user hasn't seen
     recommendation_ids = list(similar_users_liked_properties - current_user_liked_properties)
@@ -181,7 +196,9 @@ def collaborative_filtering_recommendations(properties_df, ratings_df, user_id, 
     # Generate the explanation text
     similar_users_names = [user_personas[uid]['name'] for uid in similar_users]
     explanation = (
-        f"This model found a similarity between you and other investors, such as **{similar_users_names[0]}** and **{similar_users_names[1]}**. "
+        "This model uses **collaborative filtering** to find recommendations. "
+        "It analyzes how you and other investors have interacted with properties to find your **shared taste**. "
+        f"The system found a strong similarity between you and other investors, such as **{similar_users_names[0]}** and **{similar_users_names[1]}**. "
         f"You have a shared interest in properties like **{common_prop_list}**. "
         f"Based on this shared taste, the model recommends other properties that they liked but you haven't seen."
     )
@@ -422,9 +439,6 @@ elif st.session_state.page == 'details':
 
     with rec_col1:
         st.subheader('You May Also Like')
-        st.markdown(
-            "These properties are **similar** to the one you're viewing, based on key attributes."
-        )
         content_recs, content_explanation = content_based_recommendations(properties_df, selected_property_id)
         st.info(content_explanation)
         
@@ -435,12 +449,11 @@ elif st.session_state.page == 'details':
                 st.markdown(f"**{rec_row['name']}**")
                 st.markdown(f"<small>{rec_row['location']}</small>", unsafe_allow_html=True)
                 st.markdown(f"**{rec_row['investment_type']}**")
+                st.markdown(f"**Cap Rate:** {rec_row['cap_rate']:.2f}%")
+                st.markdown(f"**Sqft:** {rec_row['sqft']:,}")
 
     with rec_col2:
         st.subheader('What Similar Investors Like')
-        st.markdown(
-            "These properties are recommended based on the tastes of investors like you."
-        )
         
         user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
         selected_user_name = st.selectbox(
