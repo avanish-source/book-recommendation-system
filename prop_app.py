@@ -244,6 +244,26 @@ st.markdown("""
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             z-index: 1000;
         }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #003366;
+            padding: 10px 20px;
+            color: white;
+        }
+        .header-logo {
+            font-weight: bold;
+            font-size: 24px;
+        }
+        .header-nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+        }
+        .header-nav a:hover {
+            text-decoration: underline;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -256,9 +276,25 @@ if 'selected_property_id' not in st.session_state:
 
 properties_df, ratings_df, user_personas = load_data()
 
+# --- Dummy Header ---
+st.markdown("""
+<div class="header">
+    <div class="header-logo">BERKADIA</div>
+    <div class="header-nav">
+        <a href="#">Services</a>
+        <a href="#">Specialties</a>
+        <a href="#">Properties</a>
+        <a href="#">Insights</a>
+        <a href="#">Research</a>
+        <a href="#">About Us</a>
+    </div>
+</div>
+<br>
+""", unsafe_allow_html=True)
+
 # Home Page: List of properties
 if st.session_state.page == 'list':
-    st.title('Commercial Real Estate Recommendations')
+    
     st.markdown("### Find your next investment opportunity.")
     
     search_query = st.text_input(
