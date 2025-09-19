@@ -415,12 +415,12 @@ if st.session_state.page == 'list':
                         st.rerun()
 
     with rec_sidebar_col:
+        st.markdown("<p style='font-weight: bold; margin-bottom: 0;'>Logged In User</p>", unsafe_allow_html=True)
+        user_names = [user_personas[uid]['name'] for uid in sorted(user_personas.keys())]
+        selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
+        st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
+        
         with st.container(border=True):
-            st.markdown("<p style='font-weight: bold; margin-bottom: 0;'>Logged In User</p>", unsafe_allow_html=True)
-            selected_user_name = st.selectbox('User', user_names, label_visibility="collapsed", key='main_user_select')
-            st.session_state.current_user_id = [uid for uid, info in user_personas.items() if info['name'] == selected_user_name][0]
-
-            st.markdown("<div class='highlight-container'>")
             st.subheader('Suggested for you')
             st.markdown(f"""
                 <div style="font-size: 14px; margin-top: -10px;">
@@ -428,8 +428,7 @@ if st.session_state.page == 'list':
                     <small><i>Based on what other investors like you have viewed or liked.</i></small>
                 </div>
             """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
+        
         collab_recs_on_top, _, _ = collaborative_filtering_recommendations(properties_df, ratings_df, st.session_state.current_user_id, user_personas, num_recommendations=10)
 
         for rec_row in collab_recs_on_top.itertuples():
