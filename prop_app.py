@@ -570,7 +570,6 @@ elif st.session_state.page == 'details':
                 - **Viewing** a property listing.
                 - **Liking** a property (a strong signal).
                 - **Downloading documents** for a property (a very strong signal).
-                - The **time spent on a page** and other key behaviors.
                 
                 By analyzing these patterns, the system uses a mathematical approach to find investors whose taste profiles are a strong match to yours. It then recommends properties that they liked but you haven't seen. This helps you discover opportunities that are highly relevant to your investment style.
                 
